@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRealtimeMatch } from '@/hooks/useRealtimeMatch';
 import { useMomentumEngine } from '@/hooks/useMomentumEngine';
 import { useFanReactions } from '@/hooks/useFanReactions';
+import { useFanStore } from '@/store/fanStore';
 import { usePredictions } from '@/hooks/usePredictions';
 import { useArenaAudio } from '@/hooks/useArenaAudio';
 import StadiumAtmosphere from '@/components/stadium/StadiumAtmosphere';
@@ -12,6 +13,7 @@ import LiveMatchHeader from '@/components/match/LiveMatchHeader';
 import MomentumEngine from '@/components/match/MomentumEngine';
 import SocialFanEcosystem from '@/components/match/SocialFanEcosystem';
 import PredictionCards from '@/components/match/PredictionCards';
+import BoundaryViewer from '@/components/match/BoundaryViewer';
 import AICommentary from '@/components/match/AICommentary';
 import PlayerAvatar from '@/components/avatars/AvatarModel';
 import DRSReviewOverlay from '@/components/moments/DRSReviewOverlay';
@@ -33,10 +35,18 @@ const DOCKS: { id: Dock; label: string }[] = [
 export default function LiveMatchPage() {
   const { match, stats, lastBall } = useRealtimeMatch();
   const momentum = useMomentumEngine();
-  const { reactions, simulateReactions } = useFanReactions();
+  // use global fan store for shared reactions
+  const reactions = useFanStore((s) => s.reactions);
+  const simulateReactions = useFanStore((s) => s.simulateReactions);
   const { pendingPredictions } = usePredictions();
   const { phase } = useMatchPhaseStore();
   const [dock, setDock] = useState<Dock>('score');
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Suppress hydration mismatch warnings by only rendering after hydration
+  useLayoutEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useArenaAudio({
     momentumValue: momentum.momentumValue,
@@ -114,9 +124,34 @@ export default function LiveMatchPage() {
           </section>
 
           <aside className="hidden border-l border-white/10 bg-black/42 p-4 backdrop-blur-2xl xl:flex xl:flex-col xl:gap-4">
-            <SidePanel match={match} inning={inning} momentumValue={momentum.momentumValue} lastBall={lastBall ?? null} />
-            <PredictionCards predictions={pendingPredictions} />
-            <SocialFanEcosystem reactions={reactions} onBoundary={() => simulateReactions(10, 'boundary')} />
+            <AnimatePresence mode="wait">
+              {dock === 'score' && (
+                <motion.div key="score" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}>
+                  <SidePanel match={match} inning={inning} momentumValue={momentum.momentumValue} lastBall={lastBall ?? null} />
+                </motion.div>
+              )}
+              {dock === 'predict' && (
+                <motion.div key="predict" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}>
+                  <div className="space-y-3">
+                    <PredictionCards predictions={pendingPredictions} />
+                    <div className="glass rounded-lg border border-white/6 p-2">
+                      <div className="text-xs font-black text-white/60 mb-2">Boundary Viewer</div>
+                      <BoundaryViewer lastBall={lastBall} />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+              {dock === 'fans' && (
+                <motion.div key="fans" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}>
+                  <SocialFanEcosystem />
+                </motion.div>
+              )}
+              {dock === 'intel' && (
+                <motion.div key="intel" initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 8 }}>
+                  <AICommentary match={match} momentum={momentum} phase={phase} lastBall={lastBall ?? null} />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </aside>
         </div>
 
@@ -207,6 +242,7 @@ function ArenaCanvas({ inning, momentumValue, lastBall }: { inning: Inning; mome
       />
 
       <div className="relative z-10 grid h-full min-h-[430px] grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-8 lg:min-h-[520px] lg:px-8">
+        {/* BoundaryViewer removed from arena overlay to avoid overlap; shown in Predict dock instead */}
         <PlayerAvatar player={inning.batsmen.striker} isActive celebration={celebration === 'boundary' ? 'boundary' : 'none'} align="left" label="Batting" />
 
         <div className="text-center">
@@ -299,8 +335,6 @@ function MobileDock({
   phase,
   lastBall,
   predictions,
-  reactions,
-  simulateReactions,
 }: {
   dock: Dock;
   onDockChange: (dock: Dock) => void;
@@ -310,9 +344,10 @@ function MobileDock({
   phase: MatchPhase;
   lastBall: Ball | null;
   predictions: Prediction[];
-  reactions: FanReaction[];
-  simulateReactions: ReturnType<typeof useFanReactions>['simulateReactions'];
 }) {
+  const reactions = useFanStore((s) => s.reactions);
+  const simulateReactions = useFanStore((s) => s.simulateReactions);
+
   return (
     <div className="xl:hidden">
       <div className="px-3 pb-24">
@@ -325,8 +360,16 @@ function MobileDock({
             className="space-y-3"
           >
             {dock === 'score' && <SidePanel match={match} inning={inning} momentumValue={momentum.momentumValue} lastBall={lastBall} />}
-            {dock === 'predict' && <PredictionCards predictions={predictions} />}
-            {dock === 'fans' && <SocialFanEcosystem reactions={reactions} onBoundary={() => simulateReactions(10, 'boundary')} />}
+            {dock === 'predict' && (
+              <div className="space-y-3">
+                <PredictionCards predictions={predictions} />
+                <div className="glass rounded-lg border border-white/6 p-2">
+                  <div className="text-xs font-black text-white/60 mb-2">Boundary Viewer</div>
+                  <BoundaryViewer lastBall={lastBall} />
+                </div>
+              </div>
+            )}
+            {dock === 'fans' && <SocialFanEcosystem />}
             {dock === 'intel' && <AICommentary match={match} momentum={momentum} phase={phase} lastBall={lastBall} />}
           </motion.div>
         </AnimatePresence>

@@ -87,8 +87,8 @@ export default function PlayerAvatar({
 
       <div className="max-w-36">
         {label && <p className="mb-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/40">{label}</p>}
-        <p className="truncate text-sm font-black text-white sm:text-base">{player.name}</p>
-        <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-white/35">{player.role.replace('-', ' ')}</p>
+        <p className="truncate text-sm font-black text-white sm:text-base">{player?.name || 'Unknown'}</p>
+        <p className="mt-0.5 text-xs font-semibold uppercase tracking-widest text-white/35">{player?.role ? player.role.replace('-', ' ') : 'Player'}</p>
         {statLine && <p className="mt-1 text-xs font-bold text-cyan-200/90">{statLine}</p>}
       </div>
     </motion.div>

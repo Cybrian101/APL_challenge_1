@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { playBurst, playSuccess } from '@/utils/sfx';
 import { useMatchPhaseStore } from '@/store/matchPhaseStore';
 import { MilestoneType } from '@/types/match';
 
@@ -48,6 +49,12 @@ export default function MilestoneBlast() {
   useEffect(() => {
     if (!milestoneData) { setVisible(false); return; }
     setVisible(true);
+    // Play an SFX for the milestone
+    if (milestoneData.milestoneType === 'player_hundred' || milestoneData.milestoneType === 'team_hundred') {
+      playSuccess();
+    } else {
+      playBurst();
+    }
     const t = setTimeout(() => { setVisible(false); exitPhase(); }, 3500);
     return () => clearTimeout(t);
   }, [milestoneData, exitPhase]);

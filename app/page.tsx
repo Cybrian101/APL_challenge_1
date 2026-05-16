@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { useLandingAudio } from '@/hooks/useLandingAudio';
+import AnalyticsPanel from '@/components/match/AnalyticsPanel';
 
 const MATCH_FEED = [
   { over: '07.2', signal: 'Powerplay echo', value: '+18 energy' },
@@ -177,6 +178,7 @@ export default function Home() {
             </div>
 
             <div className="mt-5 space-y-4">
+              <AnalyticsPanel />
               {PHOTO_STACK.map((src, index) => (
                 <button
                   type="button"

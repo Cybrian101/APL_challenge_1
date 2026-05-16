@@ -4,11 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FanReaction } from '@/types/match';
 import { FanPulseSoundId, useFanPulseAudio } from '@/hooks/useFanPulseAudio';
-
-interface SocialFanEcosystemProps {
-  reactions: FanReaction[];
-  onBoundary: () => void;
-}
+import { useFanStore } from '@/store/fanStore';
 
 const EMOJI_BUTTONS: {
   emoji: string;
@@ -38,7 +34,9 @@ interface FloatingEmoji {
   duration: number;
 }
 
-export default function SocialFanEcosystem({ reactions, onBoundary }: SocialFanEcosystemProps) {
+export default function SocialFanEcosystem() {
+  const reactions = useFanStore((s) => s.reactions);
+  const simulateReactions = useFanStore((s) => s.simulateReactions);
   const [floaters, setFloaters] = useState<FloatingEmoji[]>([]);
   const [chantPower, setChantPower] = useState(0);
   const [tapCounts, setTapCounts] = useState<Record<string, number>>({});
@@ -76,7 +74,10 @@ export default function SocialFanEcosystem({ reactions, onBoundary }: SocialFanE
 
   const handleEmojiTap = useCallback((emojiBtn: typeof EMOJI_BUTTONS[0]) => {
     fanAudio.play(emojiBtn.sound);
+    // trigger global reaction stream so other components can react too
+    simulateReactions(6, emojiBtn.type);
 
+    // Create wave effect for 3 cascading emojis
     for (let i = 0; i < 3; i += 1) {
       setTimeout(() => addFloater(emojiBtn.emoji), i * 80);
     }
@@ -87,8 +88,19 @@ export default function SocialFanEcosystem({ reactions, onBoundary }: SocialFanE
       const key = emojiBtn.label.toLowerCase() as keyof typeof prev;
       return { ...prev, [key]: (prev[key] || 0) + 1 };
     });
-    onBoundary();
-  }, [addFloater, fanAudio, onBoundary]);
+
+    // Combo detection for rapid taps
+    const taps = (tapCounts[emojiBtn.label] || 0) + 1;
+    if (taps % 5 === 0) {
+      // Every 5 taps of the same emoji = combo burst
+      fanAudio.play('celebrate');
+      simulateReactions(Math.min(20, taps * 1.5), emojiBtn.type);
+      for (let i = 0; i < 6; i++) {
+        setTimeout(() => addFloater(emojiBtn.emoji), i * 40);
+      }
+      setChantPower((prev) => Math.min(100, prev + 28));
+    }
+  }, [addFloater, fanAudio, simulateReactions, tapCounts]);
 
   const topEmojis = Object.entries(reactionStats)
     .sort((a, b) => b[1] - a[1])
@@ -144,16 +156,30 @@ export default function SocialFanEcosystem({ reactions, onBoundary }: SocialFanE
           {ENERGY_STREAMS.map((stream) => (
             <motion.div
               key={stream.id}
-              className="absolute bottom-0 w-px rounded-full bg-cyan-300/35"
+              className="absolute bottom-0 w-px rounded-full bg-gradient-to-t from-cyan-400 via-cyan-300 to-transparent"
               style={{ left: `${stream.left}%`, height: stream.height }}
               animate={{
                 opacity: chantPower > 10 ? [0.15, 0.75, 0.15] : [0.06, 0.2, 0.06],
-                scaleY: chantPower > 45 ? [0.5, 1.25, 0.5] : [0.35, 0.8, 0.35],
+                scaleY: chantPower > 45 ? [0.5, 1.35, 0.5] : [0.35, 0.8, 0.35],
+                filter: chantPower > 70 ? ['blur(1px)', 'blur(6px)', 'blur(1px)'] : ['blur(0px)', 'blur(2px)', 'blur(0px)'],
               }}
-              transition={{ duration: 1.4, repeat: Infinity, delay: stream.delay, ease: 'easeInOut' }}
+              transition={{ duration: 1.2, repeat: Infinity, delay: stream.delay, ease: 'easeInOut' }}
             />
           ))}
         </div>
+        {/* Mood-based background shift */}
+        <motion.div
+          className="absolute inset-0 pointer-events-none"
+          animate={{
+            background:
+              chantPower > 70
+                ? 'radial-gradient(circle at 50% 100%, rgba(239,68,68,0.15), transparent 70%)'
+                : chantPower > 40
+                ? 'radial-gradient(circle at 50% 100%, rgba(249,115,22,0.12), transparent 70%)'
+                : 'radial-gradient(circle at 50% 100%, rgba(34,211,238,0.1), transparent 70%)',
+          }}
+          transition={{ duration: 1, ease: 'easeOut' }}
+        />
         <div className="absolute inset-0 flex items-center justify-center">
           {floaters.length === 0 && <p className="text-xs text-gray-600">Pulse the stadium</p>}
         </div>
@@ -161,7 +187,7 @@ export default function SocialFanEcosystem({ reactions, onBoundary }: SocialFanE
           {floaters.map((floater) => (
             <motion.div
               key={floater.id}
-              className="absolute select-none text-3xl"
+              className="absolute select-none text-3xl drop-shadow-lg"
               style={{ left: `${floater.x}%`, bottom: '0%' }}
               initial={{ opacity: 1, y: 0, scale: 0.8 }}
               animate={{ opacity: 0, y: -130, scale: 1.2, x: floater.driftX }}

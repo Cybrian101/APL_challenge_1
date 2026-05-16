@@ -47,6 +47,11 @@ export class MatchSimulator {
   ): Inning {
     const batsmen = battingPlayers.filter((p) => p.role === 'batsman' || p.role === 'wicket-keeper');
     const bowlers = bowlingPlayers.filter((p) => p.role === 'bowler');
+    
+    // Ensure we have at least one batter and bowler, use any available player as fallback
+    const striker = batsmen[0] || battingPlayers[0] || { id: 'fallback-1', name: 'Unknown Batter', team: battingTeam, role: 'batsman' as const, jerseyNumber: 1, imageUrl: '' };
+    const nonStriker = batsmen[1] || battingPlayers[1] || { id: 'fallback-2', name: 'Unknown Player', team: battingTeam, role: 'batsman' as const, jerseyNumber: 2, imageUrl: '' };
+    const bowler = bowlers[0] || bowlingPlayers[0] || { id: 'fallback-3', name: 'Unknown Bowler', team: bowlingTeam, role: 'bowler' as const, jerseyNumber: 3, imageUrl: '' };
 
     return {
       inningNumber: inningNum,
@@ -59,7 +64,7 @@ export class MatchSimulator {
       status: 'ongoing',
       batsmen: {
         striker: {
-          ...batsmen[0],
+          ...striker,
           stats: {
             runs: 0,
             ballsFaced: 0,
@@ -70,7 +75,7 @@ export class MatchSimulator {
           },
         },
         nonStriker: {
-          ...batsmen[1],
+          ...nonStriker,
           stats: {
             runs: 0,
             ballsFaced: 0,
@@ -82,7 +87,7 @@ export class MatchSimulator {
         },
       },
       bowler: {
-        ...bowlers[0],
+        ...bowler,
         stats: {
           wickets: 0,
           runs: 0,

@@ -20,8 +20,9 @@ interface IntelligenceBeat {
   id: string;
   title: string;
   body: string;
-  mood: 'surge' | 'pressure' | 'control' | 'calm';
+  mood: 'surge' | 'pressure' | 'control' | 'calm' | 'explosive' | 'strategic';
   source: 'Gemini' | 'Arena AI';
+  insight?: string; // Additional strategic insight
 }
 
 const GEMINI_MODEL = process.env.NEXT_PUBLIC_GEMINI_MODEL || 'gemini-2.5-flash';
@@ -167,6 +168,16 @@ export default function AICommentary({ match, lastBall, momentum, phase }: AICom
               <span className="text-[10px] font-bold text-white/35">{pressureLabel}</span>
             </div>
             <p className="text-sm leading-relaxed text-white/82">{activeBeat.body}</p>
+            {activeBeat.insight && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                transition={{ delay: 0.2 }}
+                className="mt-2 pt-2 border-t border-white/10 text-xs text-cyan-300/70 italic"
+              >
+                💡 {activeBeat.insight}
+              </motion.p>
+            )}
           </motion.div>
         </AnimatePresence>
 
@@ -194,34 +205,41 @@ function buildLocalBeat(match: Match, lastBall: Ball | null | undefined, momentu
   const inning = match.innings[match.currentInning - 1];
   const batter = inning.batsmen.striker.name.split(' ').pop() ?? inning.batsmen.striker.name;
   const bowler = inning.bowler.name.split(' ').pop() ?? inning.bowler.name;
+  const runRate = inning.totalOvers > 0 ? (inning.totalRuns / inning.totalOvers).toFixed(1) : '0';
 
   if (phase === 'drs_review') {
     return {
       id: `ai-drs-${match.id}`,
       title: 'Decision Chamber',
-      body: `The arena has gone quiet: ${bowler} forced the question, and every fan pulse is waiting on the verdict.`,
+      body: `The arena has gone silent: ${bowler} forced the question, and every heartbeat in the stadium hangs on the verdict. This changes everything.`,
       mood: 'pressure',
       source: 'Arena AI',
+      insight: 'DRS challenges often shift momentum—the losing decision can swing 10% pressure instantly.',
     };
   }
 
   if (lastBall?.isWicket) {
+    const isHatTrick = lastBall.milestone === 'hat_trick';
     return {
       id: `ai-${lastBall.id}`,
-      title: 'Pressure Spike',
-      body: `${bowler} has ripped the rhythm away. ${inning.battingTeam} need a reset before the crowd turns fully hostile.`,
-      mood: 'pressure',
+      title: isHatTrick ? '⚡ HAT TRICK' : 'Pressure Spike',
+      body: isHatTrick
+        ? `${bowler} has entered LEGEND STATUS. Three in a row. The crowd is ELECTRIC and ${inning.battingTeam} are in FREEFALL.`
+        : `${bowler} has ripped the rhythm to shreds. New batter at crease—${inning.battingTeam} need calm, focus, and ONE reset moment.`,
+      mood: 'explosive',
       source: 'Arena AI',
+      insight: `Partnership broken. Psychological edge: 7-8% momentum swing to bowler.`,
     };
   }
 
   if (lastBall?.runs === 6 || momentum.lastTrigger === 'six') {
     return {
       id: `ai-${lastBall?.id ?? match.id}`,
-      title: 'Surge Detected',
-      body: `${batter} just bent the stadium lights. Momentum is flooding toward ${inning.battingTeam} and the next ball feels volatile.`,
+      title: 'BOUNDARY SURGE',
+      body: `${batter} UNLEASHED THE BEAST. Six cleanly over the field. Boundary rider energy flooding the arena. Bowler under SIEGE.`,
       mood: 'surge',
       source: 'Arena AI',
+      insight: `Critical strike. Next ball is HIGH RISK—bowler must respond with aggression or lose control.`,
     };
   }
 
@@ -229,28 +247,42 @@ function buildLocalBeat(match: Match, lastBall: Ball | null | undefined, momentu
     return {
       id: `ai-${lastBall?.id ?? match.id}`,
       title: 'Tempo Lift',
-      body: `${inning.battingTeam} are finding width now. The field has to move before this becomes a full power phase.`,
+      body: `Four crisp runs. ${inning.battingTeam} finding the gaps now. Field is being dissected—pressure zone is SHRINKING.`,
       mood: 'surge',
       source: 'Arena AI',
+      insight: `Batter in rhythm. Watch for the yorker or slower ball trap—conventional bowling may fail here.`,
     };
   }
 
-  if (momentum.momentumValue < 42 || lastBall?.isDot) {
+  if (momentum.momentumValue < 38 || lastBall?.isDot) {
     return {
       id: `ai-${lastBall?.id ?? match.id}`,
-      title: 'Control Window',
-      body: `${bowler} is compressing the scoring lanes. ${batter} needs one clean release shot to reopen the arena.`,
+      title: 'Bowlers Kingdom',
+      body: `${bowler} is SQUEEZING the scoring lanes tight. ${batter} faces NO options. One clean shot now could break the spell—or a dot could deepen the pressure.`,
       mood: 'control',
       source: 'Arena AI',
+      insight: `This is where composure matters most. A boundary here swings 12% momentum; a dot solidifies control.`,
+    };
+  }
+
+  if (momentum.momentumValue > 75) {
+    return {
+      id: `ai-${lastBall?.id ?? match.id}`,
+      title: '🔥 PEAK MOMENTUM',
+      body: `CHAOS IN THE ARENA. ${inning.battingTeam} are RELENTLESS. Every ball feels like a threat. Bowlers are under SIEGE and running out of ideas.`,
+      mood: 'explosive',
+      source: 'Arena AI',
+      insight: `Historical data: Teams rarely recover from 75%+ momentum without a WICKET. Danger zone active.`,
     };
   }
 
   return {
     id: `ai-${lastBall?.id ?? match.id}`,
     title: 'Live Read',
-    body: `${inning.battingTeam} are balanced but not safe. One boundary changes the color of this over completely.`,
+    body: `${inning.battingTeam} cruise at ${runRate} RR. Balanced but not safe. One boundary tilts momentum toward euphoria; one dot tightens the noose.`,
     mood: 'calm',
     source: 'Arena AI',
+    insight: `Run rate is sustainable. Next 3 balls will determine if this inning accelerates or plateaus.`,
   };
 }
 
@@ -258,6 +290,8 @@ function getMoodClass(mood: IntelligenceBeat['mood']) {
   if (mood === 'surge') return 'text-orange-300';
   if (mood === 'pressure') return 'text-red-300';
   if (mood === 'control') return 'text-violet-300';
+  if (mood === 'explosive') return 'text-yellow-300 animate-pulse';
+  if (mood === 'strategic') return 'text-emerald-300';
   return 'text-cyan-200';
 }
 
